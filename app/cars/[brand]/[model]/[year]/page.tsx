@@ -28,7 +28,7 @@ export async function generateMetadata(props: any) {
     openGraph: {
       title,
       description,
-      url: `https://tudominio.com/cars/${brand}/${model}/${year}`,
+      url: `https://autaxia.com/cars/${brand}/${model}/${year}`,
       type: 'article'
     }
   }

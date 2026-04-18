@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: GuidePageProps): Promise<Meta
     }
   }
 
-  const url = `https://tu-dominio.com/guides/${guide.slug}`
+  const url = `https://autaxia.com/guides/${guide.slug}`
 
   return {
     title: `${guide.title} | Autoaxia`,

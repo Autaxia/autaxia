@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase-client'
 import { rankingConfigs } from '@/lib/seo/ranking-config'
 import { SEO_CATEGORIES, SEO_FILTERS } from '@/lib/seo/combos'
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://tu-dominio.com'
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://autaxia.com'
 
 const SEO_BRANDS = [
   'bmw',

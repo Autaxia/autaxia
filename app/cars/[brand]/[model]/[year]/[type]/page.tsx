@@ -48,12 +48,12 @@ export async function generateMetadata({ params }: any) {
     title: meta.title,
     description: meta.description,
     alternates: {
-      canonical: `https://tudominio.com/cars/${brand}/${model}/${year}/${type}`
+      canonical: `https://autaxia.com/cars/${brand}/${model}/${year}/${type}`
     },
     openGraph: {
       title: meta.title,
       description: meta.description,
-      url: `https://tudominio.com/cars/${brand}/${model}/${year}/${type}`,
+      url: `https://autaxia.com/cars/${brand}/${model}/${year}/${type}`,
       type: 'article'
     }
   }

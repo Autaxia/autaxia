@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 
 // 🔥 dominio dinámico (PRO)
 const BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL || 'https://tu-dominio.com'
+  process.env.NEXT_PUBLIC_BASE_URL || 'https://autaxia.com'
 
 export default function robots(): MetadataRoute.Robots {
   return {

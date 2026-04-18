@@ -76,8 +76,8 @@ export async function generateMetadata({ params }: any) {
 
     alternates: {
       canonical: isES
-        ? `https://tudominio.com${esPath}`
-        : `https://tudominio.com${basePath}`,
+        ? `https://autaxia.com${esPath}`
+        : `https://autaxia.com${basePath}`,
       languages: {
         en: basePath,
         es: esPath
@@ -88,8 +88,8 @@ export async function generateMetadata({ params }: any) {
       title: meta.title,
       description: meta.description,
       url: isES
-        ? `https://tudominio.com${esPath}`
-        : `https://tudominio.com${basePath}`,
+        ? `https://autaxia.com${esPath}`
+        : `https://autaxia.com${basePath}`,
       type: 'article'
     }
   }
