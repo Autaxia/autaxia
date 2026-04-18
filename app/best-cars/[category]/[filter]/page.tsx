@@ -5,6 +5,13 @@ import { SEO_CATEGORIES, SEO_FILTERS } from '@/lib/seo/combos'
 import { generateSeoText } from '@/lib/seo/seo-text'
 
 // =====================
+// HELPERS (ANTI CRASH)
+// =====================
+function safe(str?: string) {
+  return str?.replace(/-/g, ' ') || ''
+}
+
+// =====================
 // STATIC PARAMS
 // =====================
 export function generateStaticParams() {
@@ -32,13 +39,16 @@ const supabase = createClient(
 )
 
 // =====================
-// SEO META
+// SEO META (FIXED)
 // =====================
 export async function generateMetadata({ params }: any) {
-  const { category, filter } = params
+  const resolvedParams = await params
 
-  const readableCategory = category.replace('-', ' ')
-  const readableFilter = filter.replace('-', ' ')
+  const category = resolvedParams?.category || ''
+  const filter = resolvedParams?.filter || ''
+
+  const readableCategory = safe(category)
+  const readableFilter = safe(filter)
 
   return {
     title: `Best ${readableCategory} cars for ${readableFilter} (2026)`,
@@ -50,11 +60,18 @@ export async function generateMetadata({ params }: any) {
 // PAGE
 // =====================
 export default async function Page({ params }: any) {
+  const resolvedParams = await params
 
-  const { category, filter } = params
+  const category = resolvedParams?.category || ''
+  const filter = resolvedParams?.filter || ''
 
-  const readableCategory = category.replace('-', ' ')
-  const readableFilter = filter.replace('-', ' ')
+  // 🔥 GUARD (evita crash en build)
+  if (!category || !filter) {
+    return <div className="text-center py-20 text-gray-400">Invalid page</div>
+  }
+
+  const readableCategory = safe(category)
+  const readableFilter = safe(filter)
 
   const seo = generateSeoText(category, filter)
 
@@ -64,68 +81,69 @@ export default async function Page({ params }: any) {
   const { data } = await supabase
     .from('pages')
     .select('content')
+    .limit(2000)
 
-  const safeData = data ?? []
-
-  const cars = safeData.map((d: any) => {
-    try {
-      return typeof d.content === 'string'
-        ? JSON.parse(d.content)
-        : d.content
-    } catch {
-      return null
-    }
-  }).filter(Boolean)
+  const cars = (data ?? [])
+    .map((d: any) => {
+      try {
+        return typeof d.content === 'string'
+          ? JSON.parse(d.content)
+          : d.content
+      } catch {
+        return null
+      }
+    })
+    .filter(Boolean)
 
   let filtered = cars
 
   // =====================
-  // FILTERS
+  // FILTERS (MEJORADOS)
   // =====================
   if (filter === 'students') {
     filtered = cars.filter(c =>
-      (c.reliability ?? 0) > 75 &&
-      (c.efficiency?.consumption_l_100km ?? 10) < 6
+      (c?.reliability ?? 0) > 75 &&
+      (c?.efficiency?.consumption_l_100km ?? 10) < 6
     )
   }
 
   if (filter === 'city') {
     filtered = cars.filter(c =>
-      (c.performance?.acceleration_0_100 ?? 20) < 10
+      (c?.performance?.acceleration_0_100 ?? 20) < 10
     )
   }
 
   if (filter === 'cheap') {
     filtered = cars.filter(c =>
-      (c.maintenance?.cost_level ?? 3) <= 2
+      (c?.maintenance?.[0]?.cost_eur ?? 999) < 300
     )
   }
 
   if (filter === 'under-10k') {
     filtered = cars.filter(c =>
-      (c.price ?? 99999) <= 10000
+      (c?.price ?? 99999) <= 10000
     )
   }
 
   if (filter === 'under-20k') {
     filtered = cars.filter(c =>
-      (c.price ?? 99999) <= 20000
+      (c?.price ?? 99999) <= 20000
     )
   }
 
   if (filter === 'electric') {
     filtered = cars.filter(c =>
-      c.engines?.some((e: any) =>
-        (e.fuel || '').toLowerCase().includes('electric')
+      c?.engines?.some((e: any) =>
+        (e?.fuel || '').toLowerCase().includes('electric')
       )
     )
   }
 
   // =====================
-  // 🔥 RANKING PRO
+  // RANKING
   // =====================
   const ranked = filtered
-    .sort((a, b) => (b.reliability ?? 0) - (a.reliability ?? 0))
+    .sort((a, b) => (b?.reliability ?? 0) - (a?.reliability ?? 0))
     .slice(0, 30)
 
   return (
@@ -133,7 +151,6 @@ export default async function Page({ params }: any) {
 
       {/* HEADER */}
       <div className="max-w-4xl mx-auto mb-12 text-center">
-
         <h1 className="text-4xl md:text-5xl font-bold capitalize">
           {seo.title}
         </h1>
@@ -142,10 +159,9 @@ export default async function Page({ params }: any) {
           Discover the best {readableCategory} cars for {readableFilter}.
           Real-world data: reliability, maintenance cost and performance.
         </p>
-
       </div>
 
-      {/* 🔥 SEO INTRO */}
+      {/* INTRO */}
       <div className="max-w-3xl mx-auto mb-10 text-gray-400 space-y-4 text-center leading-relaxed">
         <p>{seo.intro}</p>
       </div>
@@ -155,53 +171,44 @@ export default async function Page({ params }: any) {
 
         {ranked.map((car: any, i: number) => (
           <Link
-            key={i}
+            key={`${car?.brand?.slug}-${car?.model?.slug}-${car?.year}-${i}`}
             href={`/cars/${car?.brand?.slug}/${car?.model?.slug}/${car?.year}`}
             className="group p-5 rounded-2xl border border-white/10 bg-white/[0.04] hover:border-orange-400 transition backdrop-blur-xl"
           >
-            {/* RANK */}
             <p className="text-xs text-orange-400 mb-2">
               #{i + 1} ranked
             </p>
 
-            {/* TITLE */}
             <h2 className="font-semibold text-lg">
               {car?.brand?.name} {car?.model?.name} {car?.year}
             </h2>
 
-            {/* STATS */}
             <div className="text-sm text-gray-400 mt-3 space-y-1">
-
               <p>
                 Reliability: <span className="text-white">{car?.reliability ?? '--'}</span>
               </p>
-
               <p>
                 0-100: <span className="text-white">{car?.performance?.acceleration_0_100 ?? '--'}s</span>
               </p>
-
               <p>
                 Consumption: <span className="text-white">{car?.efficiency?.consumption_l_100km ?? '--'}</span>
               </p>
-
             </div>
 
-            {/* PROGRESS BAR */}
             <div className="mt-4 h-1 w-full bg-white/10 rounded-full overflow-hidden">
               <div
-                className="h-full bg-orange-400 transition-all"
+                className="h-full bg-orange-400"
                 style={{
                   width: `${Math.min(100, car?.reliability ?? 0)}%`
                 }}
               />
             </div>
-
           </Link>
         ))}
 
       </div>
 
-      {/* 🔥 SEO OUTRO */}
+      {/* OUTRO */}
       <div className="max-w-3xl mx-auto mt-12 text-gray-400 text-center leading-relaxed">
         <p>{seo.outro}</p>
       </div>
