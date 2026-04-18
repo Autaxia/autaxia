@@ -1,8 +1,9 @@
+import 'server-only'
+
 import { db } from '@/lib/db'
 import { brands, models, years, engines, pages } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { supabase } from '@/lib/supabase-client'
-import { inArray } from 'drizzle-orm'
 
 /* =====================================================
    TYPES
@@ -23,39 +24,21 @@ export async function getBrands(): Promise<Brand[]> {
 }
 
 export async function getBrandBySlug(slug: string) {
-  try {
-    const res = await db
-      .select()
-      .from(brands)
-      .where(eq(brands.slug, slug))
-      .limit(1)
+  const res = await db
+    .select()
+    .from(brands)
+    .where(eq(brands.slug, slug))
+    .limit(1)
 
-    return res[0] ?? null
-  } catch (error) {
-    console.error('🔥 DB ERROR getBrandBySlug:', error)
-    return null
-  }
+  return res[0] ?? null
 }
 
 export async function getModelsByBrand(brandId: string) {
-  try {
-    const res = await db
-      .select()
-      .from(models)
-      .where(eq(models.brand_id, brandId))
-
-    console.log('🔥 MODELS FOUND:', res.length)
-
-    return res
-  } catch (err) {
-    console.error('❌ DB ERROR getModelsByBrand:', err)
-    return []
-  }
+  return db
+    .select()
+    .from(models)
+    .where(eq(models.brand_id, brandId))
 }
-
-/* =====================================================
-   MODEL / YEAR
-===================================================== */
 
 export async function getModelBySlug(
   brandId: string,
@@ -64,16 +47,15 @@ export async function getModelBySlug(
   const res = await db
     .select()
     .from(models)
-    .where(
-      and(
-        eq(models.brand_id, brandId),
-        eq(models.slug, slug)
-      )
-    )
+    .where(and(eq(models.brand_id, brandId), eq(models.slug, slug)))
     .limit(1)
 
   return res[0] ?? null
 }
+
+/* =====================================================
+   YEARS / ENGINES
+===================================================== */
 
 export async function getYearsByModel(modelId: string): Promise<Year[]> {
   return db
@@ -87,27 +69,17 @@ export async function getYear(
   modelId: string,
   year: number | string
 ): Promise<Year | null> {
-
-  const yearNumber = Number(year)
-  if (isNaN(yearNumber)) return null
+  const y = Number(year)
+  if (isNaN(y)) return null
 
   const res = await db
     .select()
     .from(years)
-    .where(
-      and(
-        eq(years.model_id, modelId),
-        eq(years.year, yearNumber)
-      )
-    )
+    .where(and(eq(years.model_id, modelId), eq(years.year, y)))
     .limit(1)
 
   return res[0] ?? null
 }
-
-/* =====================================================
-   ENGINES
-===================================================== */
 
 export async function getEnginesByYear(yearId: string): Promise<Engine[]> {
   return db
@@ -117,76 +89,39 @@ export async function getEnginesByYear(yearId: string): Promise<Engine[]> {
 }
 
 /* =====================================================
-   CONTENT SYSTEM (PIPELINE READY)
+   🔥 CONTENT (FIX REAL)
 ===================================================== */
 
-async function getContent(
-  yearId: string,
-  type: string
-): Promise<Page[]> {
-  return db
-    .select()
-    .from(pages)
-    .where(
-      and(
-        eq(pages.year_id, yearId),
-        eq(pages.type, type)
-      )
-    )
+async function getContent(year: number | string, type: string) {
+  const { data } = await supabase
+    .from('pages')
+    .select('*')
+    .eq('year', Number(year))
+    .eq('type', type)
+
+  return data || []
 }
 
-export const getMaintenance = (yearId: string) =>
-  getContent(yearId, 'maintenance')
+export const getMaintenance = (year: number | string) =>
+  getContent(year, 'maintenance')
 
-export const getProblems = (yearId: string) =>
-  getContent(yearId, 'problems')
+export const getProblems = (year: number | string) =>
+  getContent(year, 'problems')
 
-export const getOwnership = (yearId: string) =>
-  getContent(yearId, 'ownership')
+export const getOwnership = (year: number | string) =>
+  getContent(year, 'ownership')
 
-export const getInsurance = (yearId: string) =>
-  getContent(yearId, 'insurance')
+export const getInsurance = (year: number | string) =>
+  getContent(year, 'insurance')
 
-export const getTires = (yearId: string) =>
-  getContent(yearId, 'tires')
+export const getTires = (year: number | string) =>
+  getContent(year, 'tires')
 
-export const getBeforeBuy = (yearId: string) =>
-  getContent(yearId, 'before-buy')
+export const getBeforeBuy = (year: number | string) =>
+  getContent(year, 'before-buy')
 
 /* =====================================================
-   SEARCH HELPERS
-===================================================== */
-
-export async function findBrandByName(name: string): Promise<Brand | null> {
-  const res = await db
-    .select()
-    .from(brands)
-    .where(eq(brands.name, name))
-    .limit(1)
-
-  return res[0] ?? null
-}
-
-export async function findModelByName(
-  brandId: string,
-  name: string
-): Promise<Model | null> {
-  const res = await db
-    .select()
-    .from(models)
-    .where(
-      and(
-        eq(models.brand_id, brandId),
-        eq(models.name, name)
-      )
-    )
-    .limit(1)
-
-  return res[0] ?? null
-}
-
-/* =====================================================
-   🔥 CAR (CLAVE → TODO EL SISTEMA)
+   🔥 CAR CORE (SUPABASE)
 ===================================================== */
 
 export async function getCarBySlug(
@@ -194,75 +129,51 @@ export async function getCarBySlug(
   modelSlug: string,
   year: string | number
 ) {
-  const yearNumber = Number(year)
+  const y = Number(year)
 
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('cars')
     .select(`
-      id,
-      brand,
-      model,
-      year,
-      brand_slug,
-      model_slug,
-      engines (
-        power,
-        fuel_type,
-        transmission
-      ),
-      problems (
-        title,
-        frequency,
-        mentions
-      )
+      *,
+      engines (*),
+      problems (*),
+      maintenance (*),
+      tires (*)
     `)
     .eq('brand_slug', brandSlug)
     .eq('model_slug', modelSlug)
-    .eq('year', yearNumber)
+    .eq('year', y)
     .maybeSingle()
 
-  if (error || !data) return null
-
-  const engine = data.engines?.[0]
+  if (!data) return null
 
   return {
-    brand: data.brand,
-    model: data.model,
-    year: data.year,
-    brand_slug: data.brand_slug,
-    model_slug: data.model_slug,
+    ...data,
+    engines: data.engines || [],
+    problems: data.problems || [],
+    maintenance: data.maintenance || [],
+    tires: data.tires || [],
 
-    power: engine?.power ?? null,
-    fuel_type: engine?.fuel_type ?? null,
-    transmission: engine?.transmission ?? null,
-
-    problems: data.problems || []
+    performance: data.performance || null,
+    efficiency: data.efficiency || null,
+    reliability: data.reliability || null
   }
 }
 
 /* =====================================================
-   🔥 COMPARE (NUEVO → SEO PAGES)
+   🔥 COMPARE
 ===================================================== */
 
 export async function getCompareCars(slug: string) {
-  // ejemplo slug:
-  // bmw-3-series-2018-vs-audi-a4-2018
-
   const parts = slug.split('-vs-')
-
   if (parts.length !== 2) return []
 
-  function parse(carSlug: string) {
-    const chunks = carSlug.split('-')
-    const year = chunks.pop()
-    const model = chunks.pop()
-    const brand = chunks.join('-')
-
-    return {
-      brand,
-      model,
-      year
-    }
+  const parse = (s: string) => {
+    const arr = s.split('-')
+    const year = arr.pop()
+    const model = arr.pop()
+    const brand = arr.join('-')
+    return { brand, model, year }
   }
 
   const a = parse(parts[0])
@@ -277,7 +188,7 @@ export async function getCompareCars(slug: string) {
 }
 
 /* =====================================================
-   TRENDING / LATEST
+   🔥 HOMEPAGE DATA
 ===================================================== */
 
 export async function getTrendingCars(limit = 6) {
@@ -299,21 +210,24 @@ export async function getLatestCars(limit = 6) {
 
   return data || []
 }
+
+/* =====================================================
+   🔥 RANKINGS
+===================================================== */
+
 export async function getCarsForRanking(limit = 100) {
   const { data } = await supabase
     .from('cars')
-    .select(`
-      brand,
-      model,
-      year,
-      brand_slug,
-      model_slug,
-      problems (*)
-    `)
+    .select('*')
     .limit(limit)
 
   return data || []
 }
+
+/* =====================================================
+   🔥 EXTRA
+===================================================== */
+
 export async function getBestEngineByModel(modelId: string) {
   const res = await db
     .select()
