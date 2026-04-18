@@ -324,3 +324,14 @@ export async function getBestEngineByModel(modelId: string) {
 
   return res.sort((a, b) => (b.power ?? 0) - (a.power ?? 0))[0]
 }
+export async function getEngineById(id?: string) {
+  if (!id) return null
+
+  const res = await db
+    .select()
+    .from(engines)
+    .where(eq(engines.id, id))
+    .limit(1)
+
+  return res[0] ?? null
+}
