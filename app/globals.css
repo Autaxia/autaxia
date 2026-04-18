@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================= */
+/* 🎨 DESIGN SYSTEM (NEGRO PRO) */
+/* ============================= */
+
+:root {
+  --background: #020203;
+  --foreground: #ffffff;
+
+  --primary: oklch(0.7 0.18 45);
+  --primary-foreground: #020203;
+
+  --border: rgba(255,255,255,0.08);
+  --muted: rgba(255,255,255,0.6);
+
+  --radius: 0.75rem;
+}
+
+/* ============================= */
+/* 🔥 BASE GLOBAL (SIN AZUL) */
+/* ============================= */
+
+@layer base {
+  html, body {
+    background: #020203 !important;
+    color: white !important;
+  }
+}
+
+/* ============================= */
+/* 🌌 BACKGROUND PREMIUM */
+/* ============================= */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      1200px 600px at 20% -10%,
+      rgba(255, 115, 0, 0.08),
+      transparent 60%
+    ),
+    radial-gradient(
+      800px 500px at 80% 0%,
+      rgba(255, 115, 0, 0.05),
+      transparent 60%
+    );
+}
+
+/* ============================= */
+/* 🧊 GLASS SYSTEM */
+/* ============================= */
+
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ============================= */
+/* 🔥 ORANGE GLOW */
+/* ============================= */
+
+.glow-orange {
+  box-shadow:
+    0 0 0 1px rgba(255,115,0,0.35),
+    0 0 40px rgba(255,115,0,0.12);
+}
+
+/* ============================= */
+/* 📦 SOFT BORDER */
+/* ============================= */
+
+.soft-border {
+  border: 1px solid rgba(255,255,255,0.08);
+}
