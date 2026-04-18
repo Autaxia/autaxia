@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { getEngineById } from '@/lib/db/queries'
 
 type Engine = {
   id: string
@@ -19,12 +18,10 @@ export default function OwnershipCalculatorPage() {
   const params = useSearchParams()
   const router = useRouter()
 
-  // 🔥 ahora nunca rompe TS
-  const engineId = params.get('engine') || undefined
+  const engineId = params.get('engine') || ''
 
   const [engine, setEngine] = useState<Engine | null>(null)
 
-  // inputs
   const [kmYear, setKmYear] = useState(15000)
   const [years, setYears] = useState(5)
 
@@ -33,20 +30,36 @@ export default function OwnershipCalculatorPage() {
   const [maintenance, setMaintenance] = useState(600)
 
   /* =============================
-     LOAD ENGINE (AUTO)
+     LOAD ENGINE (FIXED FOR VERCEL)
   ============================== */
   useEffect(() => {
+    if (!engineId) return
 
     async function load() {
-      const data = await getEngineById(engineId)
+      try {
+        const res = await fetch(`/api/engine?id=${engineId}`)
+        const data = await res.json()
 
-      if (!data) return
+        if (!data) return
 
-      setEngine(data)
+        const safeEngine: Engine = {
+          id: data.id,
+          horsepower: data.horsepower ?? undefined,
+          fuel_type: data.fuel_type ?? undefined,
+          consumption: data.consumption ?? undefined,
+          insurance_standard: data.insurance_standard ?? undefined,
+          maintenance_cost_year: data.maintenance_cost_year ?? undefined,
+        }
 
-      setConsumption(data.consumption ?? 7)
-      setInsurance(data.insurance_standard ?? 800)
-      setMaintenance(data.maintenance_cost_year ?? 600)
+        setEngine(safeEngine)
+
+        setConsumption(data.consumption ?? 7)
+        setInsurance(data.insurance_standard ?? 800)
+        setMaintenance(data.maintenance_cost_year ?? 600)
+
+      } catch (err) {
+        console.error('Engine load error:', err)
+      }
     }
 
     load()
@@ -54,7 +67,7 @@ export default function OwnershipCalculatorPage() {
   }, [engineId])
 
   /* =============================
-     CALCULATION
+     CALCULATION (UNCHANGED)
   ============================== */
   const data = useMemo(() => {
 
@@ -116,7 +129,6 @@ export default function OwnershipCalculatorPage() {
           )}
         </div>
 
-        {/* GRID */}
         <div className="grid lg:grid-cols-2 gap-8">
 
           {/* INPUTS */}
@@ -126,38 +138,23 @@ export default function OwnershipCalculatorPage() {
               Usage
             </h2>
 
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">
-                Annual mileage (km)
-              </p>
+            <Input
+              label="Annual mileage (km)"
+              value={kmYear}
+              onChange={setKmYear}
+            />
 
-              <input
-                type="number"
-                value={kmYear}
-                onChange={(e) => setKmYear(Number(e.target.value))}
-                className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-orange-500"
-              />
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">
-                Ownership period (years)
-              </p>
-
-              <input
-                type="number"
-                value={years}
-                onChange={(e) => setYears(Number(e.target.value))}
-                className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-orange-500"
-              />
-            </div>
+            <Input
+              label="Ownership period (years)"
+              value={years}
+              onChange={setYears}
+            />
 
           </div>
 
           {/* RESULTS */}
           <div className="space-y-6">
 
-            {/* TOTAL */}
             <div className="bg-white/5 border border-white/10 rounded-xl p-6">
 
               <p className="text-sm text-muted-foreground">
@@ -175,7 +172,6 @@ export default function OwnershipCalculatorPage() {
 
             </div>
 
-            {/* BREAKDOWN */}
             <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
 
               <h2 className="text-lg font-semibold">
@@ -198,7 +194,21 @@ export default function OwnershipCalculatorPage() {
   )
 }
 
-/* UI COMPONENTS */
+/* ================= UI ================= */
+
+function Input({ label, value, onChange }: any) {
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground mb-1">{label}</p>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-orange-500"
+      />
+    </div>
+  )
+}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (

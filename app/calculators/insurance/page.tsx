@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { getEngineById } from '@/lib/db/queries'
 
 type Engine = {
   id: string
   horsepower?: number
   fuel_type?: string
+  torque?: number
+  acceleration?: number
 }
 
 type Factor = {
@@ -22,7 +23,7 @@ export default function InsuranceCalculatorPage() {
   const params = useSearchParams()
   const router = useRouter()
 
-  const engineId = params.get('engine') || undefined
+  const engineId = params.get('engine') || ''
 
   const [engine, setEngine] = useState<Engine | null>(null)
 
@@ -32,24 +33,42 @@ export default function InsuranceCalculatorPage() {
   const [kmYear, setKmYear] = useState(15000)
   const [power, setPower] = useState(150)
 
-  /* LOAD ENGINE */
+  /* LOAD ENGINE (FIXED FOR VERCEL) */
   useEffect(() => {
+    if (!engineId) return
+
     async function load() {
-      const data = await getEngineById(engineId)
-      if (!data) return
-      setEngine(data)
-      setPower(data.horsepower ?? 150)
+      try {
+        const res = await fetch(`/api/engine?id=${engineId}`)
+        const data = await res.json()
+
+        if (!data) return
+
+        const safeEngine: Engine = {
+          id: data.id,
+          horsepower: data.horsepower ?? undefined,
+          fuel_type: data.fuel_type ?? undefined,
+          torque: data.torque ?? undefined,
+          acceleration: data.acceleration ?? undefined,
+        }
+
+        setEngine(safeEngine)
+        setPower(data.horsepower ?? 150)
+
+      } catch (err) {
+        console.error('Engine load error:', err)
+      }
     }
+
     load()
   }, [engineId])
 
-  /* CALCULATION + FACTORS */
+  /* CALCULATION */
   const { result, factors, recommendation } = useMemo(() => {
 
     let base = 500
     const factors: Factor[] = []
 
-    // AGE
     if (age < 25) {
       base *= 1.8
       factors.push({ label: 'Young driver', impact: 'negative', description: 'Higher risk under 25' })
@@ -58,26 +77,27 @@ export default function InsuranceCalculatorPage() {
       factors.push({ label: 'Senior driver', impact: 'negative', description: 'Higher accident probability' })
     }
 
-    // EXPERIENCE
     if (experience > 10) {
       base *= 0.9
       factors.push({ label: 'Experienced driver', impact: 'positive', description: 'Lower risk with experience' })
     }
 
-    // NO CLAIMS
     const discount = Math.min(noClaims * 0.1, 0.5)
     base *= (1 - discount)
+
     if (noClaims >= 5) {
-      factors.push({ label: 'No claims bonus', impact: 'positive', description: `${discount * 100}% discount applied` })
+      factors.push({
+        label: 'No claims bonus',
+        impact: 'positive',
+        description: `${Math.round(discount * 100)}% discount applied`
+      })
     }
 
-    // POWER
     if (power > 200) {
       base *= 1.4
       factors.push({ label: 'High power engine', impact: 'negative', description: 'More expensive to insure' })
     }
 
-    // KM
     if (kmYear < 8000) {
       base *= 0.9
       factors.push({ label: 'Low mileage', impact: 'positive', description: 'Less exposure to accidents' })
@@ -151,13 +171,11 @@ export default function InsuranceCalculatorPage() {
             <Card title="Third Party Plus" value={format(result.plus)} highlight={recommendation === 'Third Party Plus'} />
             <Card title="Comprehensive" value={format(result.full)} highlight={recommendation === 'Comprehensive'} />
 
-            {/* RECOMMENDATION */}
             <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-5">
               <p className="text-sm text-muted-foreground">Recommended</p>
               <p className="text-lg font-semibold text-orange-400">{recommendation}</p>
             </div>
 
-            {/* FACTORS */}
             <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-3">
 
               <h3 className="font-semibold">Why this price?</h3>
@@ -178,12 +196,11 @@ export default function InsuranceCalculatorPage() {
         </div>
 
       </div>
-
     </div>
   )
 }
 
-/* UI */
+/* UI COMPONENTS */
 
 function Input({ label, value, onChange }: any) {
   return (
