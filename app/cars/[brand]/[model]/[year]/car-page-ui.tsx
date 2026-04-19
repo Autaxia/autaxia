@@ -17,13 +17,12 @@ type Engine = {
 }
 
 type Props = {
+  carId?: string
   brand: { name: string; slug: string }
   model: { name: string; slug: string }
   year: string
-  summary?: string
 
   engines: Engine[]
-
   maintenance?: any[]
   problems?: any[]
   tires?: any[]
@@ -45,6 +44,7 @@ function getEngineId(engine: Engine, i: number) {
 // COMPONENT
 // ==============================
 export default function CarPageUI({
+  carId,
   brand,
   model,
   year,
@@ -66,24 +66,23 @@ export default function CarPageUI({
 
   const [selected, setSelected] = useState<any>(null)
   const [tab, setTab] = useState(tabParam)
-  const selectedPower = selected?.power_hp
-// ==============================
-// 🔥 CAR OBJECT FOR COMPARE
-// ==============================
-const car = {
-  id: `${brand.slug}-${model.slug}-${year}`, // 🔥 id estable
-  brand: brand.name,
-  model: model.name,
-  year,
-  brand_slug: brand.slug,
-  model_slug: model.slug,
 
-  performance,
-  efficiency,
-  reliability
-}
+  const selectedPower = selected?.power_hp
+
   // ==============================
-  // MAP CON IDS ESTABLES
+  // 🔥 CAR OBJECT (FIX REAL)
+  // ==============================
+  const car = {
+    id: carId,
+    brand: brand.name,
+    model: model.name,
+    year,
+    brand_slug: brand.slug,
+    model_slug: model.slug
+  }
+
+  // ==============================
+  // ENGINES IDS
   // ==============================
   const enginesWithId = useMemo(() => {
     return engines.map((e, i) => ({
@@ -99,7 +98,6 @@ const car = {
     if (!enginesWithId.length) return
 
     const found = enginesWithId.find(e => e._id === engineParam)
-
     setSelected(found || enginesWithId[0])
   }, [enginesWithId, engineParam])
 
@@ -121,10 +119,7 @@ const car = {
 
       {/* BACKGROUND */}
       <div className="absolute inset-0 -z-10 bg-[#020203]" />
-      <div className="absolute inset-0 -z-10 
-        bg-[radial-gradient(800px_400px_at_20%_-10%,rgba(255,115,0,0.12),transparent),
-             radial-gradient(600px_300px_at_80%_0%,rgba(255,115,0,0.08),transparent)]"
-      />
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(800px_400px_at_20%_-10%,rgba(255,115,0,0.12),transparent),radial-gradient(600px_300px_at_80%_0%,rgba(255,115,0,0.08),transparent)]" />
 
       <div className="max-w-7xl mx-auto px-6 py-10">
 
@@ -169,6 +164,7 @@ const car = {
 
         </div>
 
+        {/* COMPARE BUTTON */}
         <div className="flex justify-end mb-8">
           <AddToCompareButton car={car} />
         </div>
@@ -181,8 +177,7 @@ const car = {
             </h2>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-10">
-
-              {enginesWithId.map((engine) => {
+              {enginesWithId.map(engine => {
                 const active = selected?._id === engine._id
 
                 return (
@@ -191,12 +186,11 @@ const car = {
                     onClick={() => setSelected(engine)}
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
-                    className={`
-                      cursor-pointer p-5 rounded-2xl border transition backdrop-blur-xl
-                      ${active
+                    className={`cursor-pointer p-5 rounded-2xl border transition backdrop-blur-xl ${
+                      active
                         ? 'border-orange-400 bg-white/[0.06]'
-                        : 'border-white/10 bg-white/[0.02] hover:border-orange-400/40'}
-                    `}
+                        : 'border-white/10 bg-white/[0.02] hover:border-orange-400/40'
+                    }`}
                   >
                     <div className="flex justify-between mb-2">
                       <span className="font-semibold">
@@ -221,92 +215,61 @@ const car = {
                   </motion.div>
                 )
               })}
-
             </div>
           </>
         )}
 
         {/* TABS */}
         <div className="flex gap-6 border-b border-white/10 mb-8 text-sm">
-
-          {[
-            { id: 'specs', label: 'Specs' },
-            { id: 'maintenance', label: 'Maintenance' },
-            { id: 'problems', label: 'Problems' },
-            { id: 'tires', label: 'Tires' }
-          ].map(t => (
+          {['specs','maintenance','problems','tires'].map(t => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`
-                pb-3 relative transition
-                ${tab === t.id
+              key={t}
+              onClick={() => setTab(t)}
+              className={`pb-3 relative ${
+                tab === t
                   ? 'text-orange-400'
-                  : 'text-gray-500 hover:text-white'}
-              `}
+                  : 'text-gray-500 hover:text-white'
+              }`}
             >
-              {t.label}
+              {t}
 
-              {tab === t.id && (
+              {tab === t && (
                 <motion.div
-                  layoutId="tab-underline"
-                  className="absolute bottom-0 left-0 w-full h-[2px] bg-orange-400 rounded-full"
+                  layoutId="tab"
+                  className="absolute bottom-0 left-0 w-full h-[2px] bg-orange-400"
                 />
               )}
             </button>
           ))}
-
         </div>
 
         {/* CONTENT */}
         <AnimatePresence mode="wait">
 
           {tab === 'specs' && (
-            <motion.div key="specs" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <motion.div key="specs">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
                 <Stat
-  label="0-100 km/h"
-  value={
-    selectedPower
-      ? `${Math.max(5, 12 - selectedPower / 50).toFixed(1)}s`
-      : '—'
-  }
-/>
-                <Stat label="Top Speed" value={performance?.top_speed_kmh ? `${performance.top_speed_kmh} km/h` : '—'} />
-                <Stat label="Consumption" value={efficiency?.consumption_l_100km ? `${efficiency.consumption_l_100km} L/100km` : '—'} />
-                <Stat label="Reliability" value={reliability?.score ? `${reliability.score}/100` : '—'} />
+                  label="0-100 km/h"
+                  value={
+                    selectedPower
+                      ? `${Math.max(5, 12 - selectedPower / 50).toFixed(1)}s`
+                      : '—'
+                  }
+                />
+                <Stat
+                  label="Top Speed"
+                  value={performance?.top_speed_kmh ? `${performance.top_speed_kmh} km/h` : '—'}
+                />
+                <Stat
+                  label="Consumption"
+                  value={efficiency?.consumption_l_100km ? `${efficiency.consumption_l_100km} L/100km` : '—'}
+                />
+                <Stat
+                  label="Reliability"
+                  value={reliability?.score ? `${reliability.score}/100` : '—'}
+                />
               </div>
-            </motion.div>
-          )}
-
-          {tab === 'maintenance' && (
-            <motion.div key="maintenance" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              {maintenance.map((m, i) => (
-                <div key={i} className="p-5 rounded-2xl bg-white/[0.04] border border-white/10 mb-3">
-                  {m.item} — {m.interval_km} km — {m.cost_eur}€
-                </div>
-              ))}
-            </motion.div>
-          )}
-
-          {tab === 'problems' && (
-            <motion.div key="problems" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              {problems.map((p, i) => (
-                <div key={i} className="p-4 rounded-xl bg-white/[0.04] border border-white/10 mb-3">
-                  <p className="text-white font-medium">{p.issue}</p>
-                  <p className="text-gray-400 text-sm mt-1">{p.description}</p>
-                </div>
-              ))}
-            </motion.div>
-          )}
-
-          {tab === 'tires' && (
-            <motion.div key="tires" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              {tires.map((t, i) => (
-                <div key={i} className="p-5 rounded-2xl bg-white/[0.04] border border-white/10">
-                  {t.type} — {t.replacement_cost_eur}€
-                </div>
-              ))}
             </motion.div>
           )}
 

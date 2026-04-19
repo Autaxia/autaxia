@@ -1,8 +1,27 @@
 import CarPageUI from './car-page-ui'
 import { getOrCreateCar } from '@/lib/data/get-or-create-car'
+import { supabase } from '@/lib/supabase-client'
 
 // =====================
-// 🔥 METADATA (FIX REAL)
+// 🔥 GET YEAR ID (CLAVE)
+// =====================
+async function getYearId(brand: string, model: string, year: number) {
+  const { data } = await supabase
+    .from('years')
+    .select(`
+      id,
+      models!inner (slug)
+    `)
+    .eq('year', year)
+    .eq('models.slug', model)
+    .limit(1)
+    .maybeSingle()
+
+  return data?.id || null
+}
+
+// =====================
+// 🔥 METADATA
 // =====================
 export async function generateMetadata(props: any) {
   const params = await props.params
@@ -11,7 +30,6 @@ export async function generateMetadata(props: any) {
   const model = params?.model
   const year = params?.year
 
-  // 🔥 fallback anti-undefined (CLAVE)
   if (!brand || !model || !year) {
     return {
       title: 'Car specs, problems & reliability',
@@ -60,13 +78,17 @@ export default async function Page(props: any) {
     return <div>Invalid params</div>
   }
 
+  // 🔥 FIX CRÍTICO
   const yearNum = Number(year)
+
+  // 🔥 ID REAL PARA COMPARE
+  const yearId = await getYearId(brand, model, yearNum)
 
   const brandName = formatName(brand)
   const modelName = formatName(model)
 
   // =====================
-  // 🔥 GET OR CREATE (IA + CACHE)
+  // 🔥 DATA
   // =====================
   const data = await getOrCreateCar(
     brand,
@@ -75,7 +97,7 @@ export default async function Page(props: any) {
   )
 
   // =====================
-  // 🔥 NORMALIZACIÓN FUERTE (ANTI BUGS)
+  // 🔥 NORMALIZACIÓN
   // =====================
   const engines = Array.isArray(data?.engines) ? data.engines : []
   const problems = Array.isArray(data?.problems) ? data.problems : []
@@ -99,6 +121,7 @@ export default async function Page(props: any) {
   // =====================
   return (
     <CarPageUI
+      carId={yearId} // 🔥 CLAVE TOTAL
       brand={{ name: brandName, slug: brand }}
       model={{ name: modelName, slug: model }}
       year={year}

@@ -19,11 +19,11 @@ export default function AddToCompareButton({ car }: any) {
 
       // 🔥 FORMATO QUE NECESITA /api/compare
       const item = {
-        id: `${car.brand_slug}-${car.model_slug}-${car.year}`, // solo para UI
-        brand_slug: car.brand_slug,
-        model_slug: car.model_slug,
-        year: car.year
-      }
+  id: String(car.id), // 🔥 ID REAL DE LA DB (CLAVE)
+  brand_slug: car.brand_slug,
+  model_slug: car.model_slug,
+  year: car.year
+}
 
       // 🔥 evitar duplicados
       const filtered = existing.filter(

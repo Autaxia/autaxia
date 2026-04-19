@@ -13,27 +13,15 @@ export async function POST(req: Request) {
 
     for (const c of ids) {
       try {
-        // 🔥 buscamos por modelo + año (no solo año)
-        const { data, error } = await supabase
-          .from('years')
-          .select(`
-            id,
-            year,
-            models (
-              id,
-              name,
-              slug,
-              brand_id
-            ),
-            engines (
-              power_hp,
-              fuel,
-              transmission
-            )
-          `)
-          .eq('year', Number(c.year))
-          .eq('models.slug', c.model_slug) // 🔥 CLAVE
-          .limit(1)
+        // =========================
+        // 🔥 1. COGER DATA REAL (IA CACHEADA)
+        // =========================
+        const slug = `${c.brand_slug}-${c.model_slug}-${c.year}`
+
+        const { data: page, error } = await supabase
+          .from('pages')
+          .select('content')
+          .eq('slug', slug)
           .maybeSingle()
 
         if (error) {
@@ -41,54 +29,105 @@ export async function POST(req: Request) {
           continue
         }
 
-        if (!data) continue
+        if (!page?.content) {
+          console.log('⚠️ no content for:', slug)
+          continue
+        }
 
-        // 🔥 elegir mejor motor (más potente)
-        const engine =
-          data.engines?.sort(
-            (a: any, b: any) => (b.power_hp || 0) - (a.power_hp || 0)
-          )[0]
-
-        const power = engine?.power_hp ?? 120
+        const content =
+          typeof page.content === 'string'
+            ? JSON.parse(page.content)
+            : page.content
 
         // =========================
-        // 🔥 CALCULOS REALISTAS
+        // 🔥 2. ENGINE REAL (IA)
         // =========================
-        const topSpeed = Math.round(power * 0.65 + 130)
-        const accel = Math.max(3.2, 13 - power / 50)
-        const consumption = Math.max(4.2, 11 - power / 55)
+        const engine = content?.engines?.[0]
 
-        // 🔥 reliability más coherente
-        const reliabilityScore = Math.max(
-          60,
-          Math.min(90, 80 - power / 20)
-        )
+        const power =
+          engine?.power_hp ??
+          engine?.power ??
+          120
 
+        const fuel =
+          engine?.fuel ??
+          engine?.fuel_type ??
+          'petrol'
+
+        const transmission =
+          engine?.transmission ??
+          'manual'
+
+        // =========================
+        // 🔥 3. FACTORES
+        // =========================
+        const fuelFactor =
+          fuel === 'diesel' ? -0.6 :
+          fuel === 'electric' ? -1.8 :
+          0
+
+        const transmissionFactor =
+          transmission === 'automatic' ? -0.2 : 0.2
+
+        // =========================
+        // 🔥 4. PERFORMANCE
+        // =========================
+        const topSpeed =
+          content?.performance?.top_speed_kmh ??
+          Math.round(power * 0.62 + 135 + transmissionFactor * 8)
+
+        const accel =
+          content?.performance?.acceleration_0_100 ??
+          Math.max(
+            3.0,
+            12.8 - power / 55 + fuelFactor + transmissionFactor
+          )
+
+        const consumption =
+          content?.efficiency?.consumption_l_100km ??
+          Math.max(
+            3.5,
+            10.5 - power / 60 +
+            (fuel === 'diesel' ? -1.2 : fuel === 'electric' ? -3 : 0.6)
+          )
+
+        // =========================
+        // 🔥 5. RELIABILITY
+        // =========================
+        const reliabilityScore =
+          content?.reliability?.score ??
+          (fuel === 'electric'
+            ? 85
+            : fuel === 'diesel'
+            ? 80
+            : 72 + Math.max(0, 18 - power / 12))
+
+        // =========================
+        // 🔥 6. RESULT FINAL
+        // =========================
         results.push({
-          id: data.id,
+          id: slug,
 
-          // 🔥 NORMALIZACIÓN FRONT
-          brand: {
-            name: c.brand_slug,
+          brand: content?.brand || {
+            name: c.brand_slug.replace(/-/g, ' '),
             slug: c.brand_slug
           },
 
-          model: {
-            name: (data.models as any)?.name || 'Model',
+          model: content?.model || {
+            name: c.model_slug.replace(/-/g, ' '),
             slug: c.model_slug
           },
 
-          year: data.year,
+          year: content?.year || c.year,
 
-          // 🔥 DATOS EXTRA (muy importante para UI futura)
           engine: {
             power_hp: power,
-            fuel: engine?.fuel ?? 'petrol',
-            transmission: engine?.transmission ?? 'auto'
+            fuel,
+            transmission
           },
 
           performance: {
-            top_speed_kmh: topSpeed,
+            top_speed_kmh: Math.round(topSpeed),
             acceleration_0_100: Number(accel.toFixed(1))
           },
 
