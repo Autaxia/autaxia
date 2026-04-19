@@ -13,6 +13,26 @@ function slugify(text: string) {
   return text.toLowerCase().replace(/\s+/g, '-')
 }
 
+// 🔥 NORMALIZADORES (CLAVE)
+function extractKm(text: string = '') {
+  const match = text.match(/(\d{4,6})\s?km/i)
+  return match ? Number(match[1]) : 15000
+}
+
+function estimateCost(text: string = '') {
+  const t = text.toLowerCase()
+  if (t.includes('oil')) return 120
+  if (t.includes('brake')) return 300
+  if (t.includes('filter')) return 80
+  return 150
+}
+
+function estimateTireCost(text: string = '') {
+  if (text.includes('19')) return 800
+  if (text.includes('18')) return 600
+  return 400
+}
+
 // =========================
 // 💸 CONTROL COSTE
 // =========================
@@ -31,7 +51,7 @@ async function safeAI(fn: () => Promise<any>) {
 }
 
 // =========================
-// 🔁 RETRY AI (CLAVE)
+// 🔁 RETRY AI
 // =========================
 async function getAIWithRetry(
   brand: string,
@@ -42,8 +62,8 @@ async function getAIWithRetry(
 
   while (attempts < 3) {
     const ai = await safeAI(() =>
-      enrichWithAI(brand, model, year)
-    )
+  enrichWithAI(brand, model, year)
+)
 
     if (ai && Array.isArray(ai.engines) && ai.engines.length > 0) {
       return ai
@@ -91,34 +111,7 @@ export async function getOrCreateCar(
     }
 
     // =========================
-    // 🔒 LOCK WAIT
-    // =========================
-    if (existing?.processing) {
-      console.log('⏳ waiting other process...', slug)
-
-      await new Promise(r => setTimeout(r, 1200))
-
-      const { data: retry } = await supabase
-        .from('pages')
-        .select('content')
-        .eq('slug', slug)
-        .maybeSingle()
-
-      if (retry?.content) {
-        const parsed =
-          typeof retry.content === 'string'
-            ? JSON.parse(retry.content)
-            : retry.content
-
-        if (parsed?.engines?.length > 0) {
-          console.log('📦 loaded after wait:', slug)
-          return parsed
-        }
-      }
-    }
-
-    // =========================
-    // 🔒 LOCK WRITE
+    // 🔒 LOCK
     // =========================
     await supabase.from('pages').upsert(
       { slug, processing: true },
@@ -131,14 +124,8 @@ export async function getOrCreateCar(
 
     console.log('⚡ generating:', slug)
 
-    // =========================
-    // 🤖 AI + RETRY
-    // =========================
     const ai = await getAIWithRetry(brand, model, year)
 
-    // =========================
-    // 🧠 DECISION
-    // =========================
     let data
 
     if (ai) {
@@ -149,14 +136,33 @@ export async function getOrCreateCar(
         model: { name: model, slug: slugify(model) },
         year,
 
-        engines: ai.engines,
+        // =========================
+        // 🔥 CORE
+        // =========================
+        engines: ai.engines || [],
         performance: ai.performance || {},
         efficiency: ai.efficiency || {},
 
-        maintenance: ai.maintenance_items || [],
-        tires: ai.tires ? [ai.tires] : [],
+        // =========================
+        // 🔥 NORMALIZACIÓN CLAVE
+        // =========================
+        maintenance: (ai.maintenance_items || ai.maintenance || []).map((m: any) => ({
+          item: m.item ?? m.title ?? '',
+          interval_km: m.interval_km ?? extractKm(m.title),
+          cost_eur: m.cost_eur ?? estimateCost(m.title)
+        })),
 
-        problems: ai.problems || [],
+        problems: (ai.problems || []).map((p: any) => ({
+          issue: p.issue ?? p.title ?? '',
+          description: p.description ?? '',
+          severity: p.severity,
+          frequency: p.frequency
+        })),
+
+        tires: (ai.tires || []).map((t: any) => ({
+          type: t.type ?? t.title ?? '',
+          replacement_cost_eur: t.replacement_cost_eur ?? estimateTireCost(t.title)
+        })),
 
         reliability:
           typeof ai?.reliability?.score === 'number'
@@ -169,8 +175,7 @@ export async function getOrCreateCar(
       }
 
     } else {
-      console.log('⚠️ AI failed after retries → fallback')
-
+      console.log('⚠️ AI failed → fallback')
       data = fallbackCar(brand, model, year)
     }
 
@@ -191,11 +196,6 @@ export async function getOrCreateCar(
     )
 
     console.log('✅ SAVED:', slug)
-console.log('→ engines:', data.engines.length)
-console.log('→ problems:', data.problems.length)
-console.log('→ maintenance:', data.maintenance.length)
-console.log('→ reliability:', data.reliability)
-console.log('→ summary:', data.summary)
 
     return data
 
