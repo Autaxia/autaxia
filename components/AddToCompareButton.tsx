@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function AddToCompareButton({ model, brand }: any) {
+export default function AddToCompareButton({ car }: any) {
   const [added, setAdded] = useState(false)
   const router = useRouter()
 
@@ -11,19 +11,29 @@ export default function AddToCompareButton({ model, brand }: any) {
     try {
       const existing = JSON.parse(localStorage.getItem('compare') || '[]')
 
-      const cleanItem = {
-        id: String(model.id),
-        modelId: String(model.id),
-        name: model.name,
-        brandName: brand.name,
-        brandSlug: brand.slug
+      // 🔥 VALIDACIÓN REAL
+      if (!car?.brand_slug || !car?.model_slug || !car?.year) {
+        console.error('❌ Car missing required fields:', car)
+        return
       }
 
-      // 🔥 eliminar duplicados
-      const filtered = existing.filter((c: any) => c.modelId !== cleanItem.modelId)
+      // 🔥 FORMATO QUE NECESITA /api/compare
+      const item = {
+        id: `${car.brand_slug}-${car.model_slug}-${car.year}`, // solo para UI
+        brand_slug: car.brand_slug,
+        model_slug: car.model_slug,
+        year: car.year
+      }
 
-      // 🔥 añadir nuevo
-      let updated = [...filtered, cleanItem]
+      // 🔥 evitar duplicados
+      const filtered = existing.filter(
+        (c: any) =>
+          !(c.brand_slug === item.brand_slug &&
+            c.model_slug === item.model_slug &&
+            c.year === item.year)
+      )
+
+      let updated = [...filtered, item]
 
       // 🔥 límite PRO (3 coches)
       if (updated.length > 3) {
@@ -32,17 +42,15 @@ export default function AddToCompareButton({ model, brand }: any) {
 
       localStorage.setItem('compare', JSON.stringify(updated))
 
-      // 🔥 CLAVE: avisar a otras páginas
+      // 🔥 actualizar compare en vivo
       window.dispatchEvent(new Event('compareUpdated'))
-
-      console.log('✅ SAVED:', updated)
 
       setAdded(true)
 
       setTimeout(() => {
         setAdded(false)
         router.push('/compare')
-      }, 500)
+      }, 400)
 
     } catch (e) {
       console.error('❌ ERROR SAVING COMPARE', e)
@@ -79,7 +87,7 @@ export default function AddToCompareButton({ model, brand }: any) {
           backdrop-blur-md
         ">
           <span className="font-medium">
-            {brand.name} {model.name}
+            {car.brand} {car.model}
           </span>{' '}
           added to compare 🚀
         </div>

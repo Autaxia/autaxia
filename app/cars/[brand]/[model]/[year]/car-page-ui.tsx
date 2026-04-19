@@ -67,7 +67,21 @@ export default function CarPageUI({
   const [selected, setSelected] = useState<any>(null)
   const [tab, setTab] = useState(tabParam)
   const selectedPower = selected?.power_hp
+// ==============================
+// 🔥 CAR OBJECT FOR COMPARE
+// ==============================
+const car = {
+  id: `${brand.slug}-${model.slug}-${year}`, // 🔥 id estable
+  brand: brand.name,
+  model: model.name,
+  year,
+  brand_slug: brand.slug,
+  model_slug: model.slug,
 
+  performance,
+  efficiency,
+  reliability
+}
   // ==============================
   // MAP CON IDS ESTABLES
   // ==============================
@@ -156,7 +170,7 @@ export default function CarPageUI({
         </div>
 
         <div className="flex justify-end mb-8">
-          <AddToCompareButton model={model} brand={brand} />
+          <AddToCompareButton car={car} />
         </div>
 
         {/* ENGINES */}

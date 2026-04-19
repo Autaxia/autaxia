@@ -1,47 +1,96 @@
 'use client'
+
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import StatBar from '@/components/StatBar'
+import CompareSelector from '@/components/CompareSelector'
 
 export default function ComparePage() {
 
   const [cars, setCars] = useState<any[]>([])
 
   // =========================
-  // LOAD STORAGE
+  // LOAD + FETCH
   // =========================
   useEffect(() => {
-    const raw = localStorage.getItem('compare') || '[]'
-    const parsed = JSON.parse(raw)
-    setCars(parsed)
+    async function loadCars() {
+      try {
+        const raw = localStorage.getItem('compare') || '[]'
+        const stored = JSON.parse(raw)
+
+        if (!stored.length) {
+          setCars([])
+          return
+        }
+
+        const res = await fetch('/api/compare', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    ids: stored // 🔥 IMPORTANTE: mandar todo
+  })
+})
+
+        const data = await res.json()
+
+        // 🔥 NORMALIZACIÓN CLAVE
+        const normalized = data.map((c: any) => ({
+          ...c,
+          brand: {
+            name: c.brand?.name || c.brand || 'Unknown',
+            slug: c.brand?.slug || c.brand_slug || c.brand || 'unknown'
+          },
+          model: {
+            name: c.model?.name || c.model || 'Model',
+            slug: c.model?.slug || c.model_slug || c.model || 'model'
+          }
+        }))
+
+        setCars(normalized)
+
+      } catch (err) {
+        console.error(err)
+        setCars([])
+      }
+    }
+
+    loadCars()
+
+    // 🔥 live update
+    window.addEventListener('compareUpdated', loadCars)
+    return () => window.removeEventListener('compareUpdated', loadCars)
+
   }, [])
 
   // =========================
-  // ENRICH + SCORE
+  // SCORE
   // =========================
   const enriched = cars.map(c => {
 
-    const reliability = c.reliability || 0
-    const consumption = c.efficiency?.consumption_l_100km || 10
-    const accel = c.performance?.acceleration_0_100 || 10
-    const speed = c.performance?.top_speed_kmh || 0
+    const reliability = c?.reliability?.score ?? c?.reliability ?? 70
+
+    const consumption =
+      c?.efficiency?.consumption_l_100km ?? 6.5
+
+    const accel =
+      c?.performance?.acceleration_0_100 ?? 8.5
+
+    const speed =
+      c?.performance?.top_speed_kmh ?? 200
 
     const score =
-      reliability
-      - consumption * 2
-      - accel * 1.5
+      reliability * 0.6 +
+      (100 - consumption * 5) * 0.2 +
+      (100 - accel * 6) * 0.2
 
     return {
       ...c,
-      score,
+      score: Math.max(0, Math.min(100, score)),
       speed
     }
   })
-
-  // =========================
-  // GLOBAL STATS
-  // =========================
-  const maxScore = Math.max(0, ...enriched.map(c => c.score))
-  const maxSpeed = Math.max(0, ...enriched.map(c => c.speed))
 
   const winner =
     enriched.length > 1
@@ -49,194 +98,177 @@ export default function ComparePage() {
       : null
 
   // =========================
-  // BADGES
-  // =========================
-  const getBadges = (car: any) => {
-    const badges: string[] = []
-
-    if (car.speed === maxSpeed && maxSpeed > 0) {
-      badges.push('🏎 Fastest')
-    }
-
-    if (car.score === maxScore && maxScore > 0) {
-      badges.push('🏆 Best overall')
-    }
-
-    if (car.efficiency?.consumption_l_100km < 5) {
-      badges.push('⚡ Efficient')
-    }
-
-    if ((car.performance?.acceleration_0_100 ?? 10) < 7) {
-      badges.push('🔥 Quick')
-    }
-
-    return badges
-  }
-
-  // =========================
   // REMOVE
   // =========================
   const removeCar = (id: string) => {
-    const updated = cars.filter(c => c.id !== id)
+    const raw = JSON.parse(localStorage.getItem('compare') || '[]')
+    const updated = raw.filter((c: any) => c.id !== id)
+
     localStorage.setItem('compare', JSON.stringify(updated))
-    setCars(updated)
+    window.dispatchEvent(new Event('compareUpdated'))
   }
 
+  // =========================
+  // SLUG SAFE
+  // =========================
+  const compareSlug = cars
+    .map(c => `${c.brand?.slug}-${c.model?.slug}-${c.year}`)
+    .join('-vs-')
+
+  // =========================
+  // EMPTY
+  // =========================
+  if (!cars.length) {
+    return (
+      <div className="min-h-screen bg-[#020203] text-white flex items-center justify-center px-6">
+        <div className="text-center max-w-md">
+          <h1 className="text-3xl font-bold mb-4">Compare Cars</h1>
+          <p className="text-gray-400 mb-6">
+            Select cars to compare performance, reliability and ownership costs.
+          </p>
+          <Link
+            href="/brands"
+            className="inline-block px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-400 text-black font-semibold"
+          >
+            Browse cars
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // =========================
+  // UI
+  // =========================
   return (
-    <div className="min-h-screen bg-[#020203] text-white relative overflow-hidden">
+    <div className="min-h-screen bg-[#020203] text-white px-6 py-10">
 
-      {/* BACKGROUND */}
-      <div className="absolute inset-0 -z-10 
-        bg-[radial-gradient(900px_500px_at_10%_-10%,rgba(255,115,0,0.10),transparent),
-             radial-gradient(700px_400px_at_90%_0%,rgba(255,115,0,0.06),transparent)]" 
-      />
-
-      <div className="max-w-6xl mx-auto px-6 py-10 space-y-12">
+      <div className="max-w-6xl mx-auto space-y-10">
 
         {/* HEADER */}
-        <div>
-          <h1 className="text-4xl font-bold">Compare cars</h1>
-          <p className="text-gray-400 mt-2">Real data comparison</p>
-        </div>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
 
-        {cars.length === 0 && (
-          <div className="text-center text-gray-400 py-20">
-            No cars selected yet
+  <div>
+    <h1 className="text-4xl font-bold">Compare cars</h1>
+    <p className="text-gray-400 mt-2">
+      Compare real-world performance, efficiency and reliability
+    </p>
+  </div>
+
+  <Link
+    href="/brands"
+    className="px-5 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-400 text-black font-semibold hover:scale-105 transition"
+  >
+    + Browse brands
+  </Link>
+
+</div>
+{/* 🔥 INLINE SELECTOR */}
+<CompareSelector />
+
+        {/* CTA */}
+        {cars.length >= 2 && (
+          <div className="text-center">
+            <Link
+              href={`/compare/${compareSlug}`}
+              className="inline-block px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-400 text-black font-semibold hover:scale-105 transition"
+            >
+              🔥 Full comparison
+            </Link>
           </div>
         )}
 
-        {cars.length > 0 && (
-          <>
-            {/* CARDS */}
-            <div className="grid gap-6 md:grid-cols-3">
+        {/* GRID */}
+        <div className="grid md:grid-cols-2 gap-6">
 
-              {enriched.map(car => (
-                <div key={car.id} className="relative p-6 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-xl">
+  {enriched.map(car => {
 
-                  <h2 className="text-lg font-semibold">
-                    {car.brand.name} {car.model.name} {car.year}
-                  </h2>
+    const isWinner = winner && car.id === winner.id
 
-                  {/* BADGES */}
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {getBadges(car).map(b => (
-                      <span key={b} className="text-xs px-2 py-1 rounded-full bg-orange-500/20 text-orange-400">
-                        {b}
-                      </span>
-                    ))}
-                  </div>
+    return (
+      <div
+        key={car.id}
+        className={`
+          relative p-6 rounded-2xl border backdrop-blur-xl transition
+          ${isWinner
+            ? 'border-orange-400 bg-orange-500/5'
+            : 'border-white/10 bg-white/[0.04]'
+          }
+        `}
+      >
 
-                  {/* SCORE */}
-                  <div className="mt-4">
-                    <div className="text-sm text-gray-400 mb-1">Overall score</div>
-
-                    <div className="w-full bg-white/10 rounded-full h-2">
-                      <div
-                        className="h-2 rounded-full bg-orange-400 transition-all duration-500"
-                        style={{ width: `${Math.min(100, car.score)}%` }}
-                      />
-                    </div>
-
-                    <div className="text-sm mt-1 text-orange-400 font-semibold">
-                      {car.score.toFixed(1)}
-                    </div>
-                  </div>
-
-                  {/* PERFORMANCE BAR */}
-                  <div className="mt-3">
-                    <div className="text-xs text-gray-400 mb-1">
-                      Relative speed
-                    </div>
-
-                    <div className="w-full bg-white/10 h-2 rounded">
-                      <div
-                        className="h-2 bg-orange-400 rounded"
-                        style={{
-                          width: `${(car.speed / (maxSpeed || 1)) * 100}%`
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* DATA */}
-                  <div className="mt-4 text-sm space-y-1 text-gray-300">
-                    <div>⚡ {car.performance?.top_speed_kmh ?? '--'} km/h</div>
-                    <div>⏱ {car.performance?.acceleration_0_100 ?? '--'}s 0-100</div>
-                    <div>⛽ {car.efficiency?.consumption_l_100km ?? '--'} L/100km</div>
-                    <div>🛠 {car.maintenance?.cost_level ?? '--'}</div>
-                  </div>
-
-                  {/* CTA */}
-                  <Link
-                    href={`/cars/${car.brand.slug}/${car.model.slug}/${car.year}`}
-                    className="block mt-4 text-center py-2 rounded-xl bg-gradient-to-r from-orange-400 to-yellow-300 text-black font-semibold hover:scale-105 transition"
-                  >
-                    View car
-                  </Link>
-
-                  {/* REMOVE */}
-                  <button
-                    onClick={() => removeCar(car.id)}
-                    className="absolute top-3 right-3 text-xs text-gray-400 hover:text-red-400"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-
-            </div>
-
-            {/* WINNER */}
-            {winner && (
-              <div className="text-center pt-6">
-                <p className="text-gray-400 text-sm">Best overall choice</p>
-                <p className="text-lg font-semibold text-orange-400 mt-1">
-                  🏆 {winner.brand.name} {winner.model.name} {winner.year}
-                </p>
-              </div>
-            )}
-
-          </>
+        {isWinner && (
+          <div className="absolute top-3 right-3 text-xs px-2 py-1 rounded-full bg-orange-400 text-black font-semibold">
+            BEST
+          </div>
         )}
 
-        {/* SEO LINKS */}
-        <div className="pt-10 flex flex-wrap gap-4 text-sm justify-center">
+        <h2 className="text-lg font-semibold">
+          {car.brand?.name} {car.model?.name}
+        </h2>
 
-          <Link href="/cars" className="text-orange-400 hover:underline">
-            Browse all brands
-          </Link>
+        <p className="text-gray-400 text-sm">{car.year}</p>
 
-          <Link href="/explore" className="text-orange-400 hover:underline">
-            Explore cars
-          </Link>
+        {/* 🔥 BARRAS PREMIUM */}
+        <div className="mt-4 space-y-3">
 
-          <Link href="/best-cars/reliable" className="text-orange-400 hover:underline">
-            Most reliable cars
-          </Link>
+          <StatBar
+            label="Top speed"
+            value={car.performance?.top_speed_kmh}
+            max={320}
+          />
+
+          <StatBar
+            label="Acceleration"
+            value={car.performance?.acceleration_0_100}
+            max={12}
+            inverse
+          />
+
+          <StatBar
+            label="Consumption"
+            value={car.efficiency?.consumption_l_100km}
+            max={12}
+            inverse
+          />
 
         </div>
+
+        {/* SCORE */}
+        <div className="mt-4 text-sm text-orange-400 font-semibold">
+          Score: {car.score.toFixed(1)}
+        </div>
+
+        <Link
+          href={`/cars/${car.brand.slug}/${car.model.slug}/${car.year}`}
+          className="block mt-4 text-center py-2 rounded-xl bg-orange-400 text-black font-semibold"
+        >
+          View car
+        </Link>
+
+        <button
+          onClick={() => removeCar(car.id)}
+          className="mt-3 text-xs text-gray-400 hover:text-red-400"
+        >
+          Remove
+        </button>
+
+      </div>
+    )
+  })}
+
+</div>
+        {/* WINNER */}
+        {winner && (
+          <div className="text-center pt-6">
+            <p className="text-gray-400 text-sm">Best overall choice</p>
+            <p className="text-lg font-semibold text-orange-400 mt-1">
+              🏆 {winner.brand.name} {winner.model.name} {winner.year}
+            </p>
+          </div>
+        )}
 
       </div>
     </div>
   )
 }
-
-<div className="pt-10 flex flex-wrap gap-4 text-sm justify-center">
-
-  <Link href="/best-cars/reliable" className="text-orange-400 hover:underline">
-    Best reliable cars
-  </Link>
-
-  <Link href="/best-cars/fast" className="text-orange-400 hover:underline">
-    Fastest cars
-  </Link>
-
-  <Link href="/best-cars/low-consumption" className="text-orange-400 hover:underline">
-    Low consumption cars
-  </Link>
-
-  <Link href="/best-cars/cheap-maintenance" className="text-orange-400 hover:underline">
-    Cheap maintenance cars
-  </Link>
-
-</div>
